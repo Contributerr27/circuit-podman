@@ -110,3 +110,37 @@ Look at the service first: `systemctl status NAME.service` shows how systemd see
 - **The container can't read a host directory on Rocky Linux or Fedora.** SELinux is enforcing: add `:Z` to the volume, as in `/srv/media:/media:z`.
 - **A container's restart fails while a package upgrade runs.** A libc6 or systemd upgrade makes systemd re-execute itself mid-apply, which used to fail the restart step. Ref v0.2.0 or later retries across the re-exec, so upgrade the module's `ref`.
 - **The plan wants to redo something you changed by hand.** That's the circuit putting its own version back. Stop a container with `systemctl stop NAME.service` and the next apply starts it again; edit a file it manages under `/etc/containers` and the next apply rewrites it.
+
+
+## Inputs
+
+| Name | Type | Default | Description |
+| --- | --- | --- | --- |
+| `hosts` | any | Required | Hosts to configure, by name. Each value is an address, such as `"203.0.113.10"`, or a host object such as `{ address = "203.0.113.10", host_key = "ssh-ed25519 AAAA..." }`. A host object can also set `user`, `port`, `private_key_file` and `jump_hosts`. The two forms can be mixed. |
+| `ssh_user` | string | `"root"` | User to log in as. |
+| `ssh_port` | number | `22` | SSH port. |
+| `ssh_private_key_file` | string | `null` | Path to a private key. When null, Conn3x uses the SSH agent. |
+| `ssh_known_hosts_file` | string | `null` | known_hosts file to check host keys against. When null, `~/.ssh/known_hosts`. Not used for a host object with `host_key`. |
+| `ssh_become` | bool | `false` | Run commands as root through sudo. Set it when `ssh_user` isn't root. |
+| `containers` | map(object) | `{}` | Containers to run, by name. Names use lowercase letters, digits, `.`, `-` and `_`. Each takes `image` (required, with a tag or digest), `ports` and `volumes` (lists of strings in Podman's `-p` and `-v` syntax), `environment` (map of strings), `extra` (list of extra lines for the `[Container]` section, such as `"Network=host"`) and `auto_update` (bool, default `false`). |
+| `secrets` | map(map(string)) | `{}` | Ephemeral. Secret environment variables by container name, such as `{ grafana = { GF_SECURITY_ADMIN_PASSWORD = var.grafana_password } }`. |
+| `registries` | list(string) | `[]` | Registries to search for short image names, in order, such as `["docker.io"]`. Give one: with two or more, Podman refuses short names under systemd, since it has no terminal to ask which one you meant. When empty, the distribution's setting stays. |
+| `auto_update_timer` | bool | `false` | Start and enable `podman-auto-update.timer`. Setting it back to `false` leaves the timer as it is. |
+
+## Outputs
+
+| Name | Description |
+| --- | --- |
+| `services` | Each container's systemd service, such as `{ whoami = "whoami.service" }`. |
+
+## Requirements
+Requires Conn3x v0.29.0 or later and systemd on each host, with outbound HTTPS to your distribution's mirrors and to the registries your images come from. Quadlet ships with Podman 4.4 and later; the oldest Podman this was tested with is 4.9.3 on Ubuntu 24.04.
+
+## Tested on
+Rocky Linux 10 (Podman 5.8), Fedora 45 (Podman 6.1), Ubuntu 24.04 (Podman 4.9) and Debian 13 (Podman 5.4). CI applies [examples/local](examples/local) to each on amd64, checks that the second plan has no changes, and checks that the example container answers on its published port with the name from its env file.
+
+The CI containers run with SELinux off. On a Rocky Linux 10 droplet with SELinux enforcing, the example was applied by hand alongside an nginx container serving a host directory mounted with `:Z`. Both answered, the second plan had no changes, and the audit log had no denials. The same held on Fedora 44 and AlmaLinux 10 droplets with SELinux enforcing, and both containers came back on their own after a reboot. Without `:Z`, the same directory was unreadable from inside the container.
+
+## License
+
+MPL-2.0. See [LICENSE](LICENSE). Podman itself is Apache-2.0.
