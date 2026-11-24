@@ -107,10 +107,9 @@ Look at the service first: `systemctl status NAME.service` shows how systemd see
 
 - **The plan fails before touching the host.** A validation message names the input to fix: an image without a tag or digest, an `auto_update` image that isn't fully qualified, an environment or secret name that isn't a valid shell name, a secret for a container that isn't in `containers`, or a registry that isn't a host name.
 - **The container keeps restarting or never comes up.** Its logs say why. A host path in `volumes` that doesn't exist on the host keeps the container from starting: create the directory, then `systemctl restart NAME.service`.
-- **The container can't read a host directory on Rocky Linux or Fedora.** SELinux is enforcing: add `:Z` to the volume, as in `/srv/media:/media:z`.
+- **The container can't read a host directory on Rocky Linux or Fedora.** SELinux is enforcing: add `:Z` (or `:z` if other containers share the directory), as in `/srv/media:/media:Z`.
 - **A container's restart fails while a package upgrade runs.** A libc6 or systemd upgrade makes systemd re-execute itself mid-apply, which used to fail the restart step. Ref v0.2.0 or later retries across the re-exec, so upgrade the module's `ref`.
 - **The plan wants to redo something you changed by hand.** That's the circuit putting its own version back. Stop a container with `systemctl stop NAME.service` and the next apply starts it again; edit a file it manages under `/etc/containers` and the next apply rewrites it.
-
 
 ## Inputs
 
