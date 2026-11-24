@@ -85,6 +85,13 @@ variable "secrets" {
     condition     = alltrue(flatten([for env in values(var.secrets) : [for k in keys(env) : can(regex("^[A-Za-z_][A-Za-z0-9_]*$", k))]]))
     error_message = "Secret variable names may use letters, digits and _, and can't start with a digit."
   }
+
+  validation {
+    # Env files are line-based: a line break in a value would split it into
+    # extra lines, silently corrupting the secret and its neighbours.
+    condition     = alltrue(flatten([for env in values(var.secrets) : [for v in values(env) : can(regex("^[^\r\n]*$", v))]]))
+    error_message = "Secret values can't contain line breaks, since each one is a line of /etc/containers/env/NAME.env. For a multiline secret, mount a file as a volume instead."
+  }
 }
 
 variable "registries" {
